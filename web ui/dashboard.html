@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhysicsGuard — ICS Security Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:          #080c10;
+    --bg2:         #0d1117;
+    --bg3:         #111820;
+    --panel:       #131c26;
+    --border:      #1e2d3d;
+    --border-hi:   #2a4060;
+    --accent:      #00d4ff;
+    --accent-dim:  #00809a;
+    --danger:      #ff3b3b;
+    --danger-dim:  #7a1a1a;
+    --warn:        #ffaa00;
+    --warn-dim:    #6b4600;
+    --ok:          #00e676;
+    --ok-dim:      #005c2e;
+    --text:        #c9d8e8;
+    --text-dim:    #4a6070;
+    --text-hi:     #eaf4ff;
+    --mono:        'Share Tech Mono', monospace;
+    --sans:        'Barlow Condensed', sans-serif;
+    --radius:      4px;
+    --glow-accent: 0 0 12px rgba(0,212,255,0.25);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+  header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 32px; height: 32px;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--glow-accent);
+    animation: pulse-ring 3s ease-in-out infinite;
+  }
+  .logo-icon svg { width: 16px; height: 16px; fill: var(--accent); }
+  @keyframes pulse-ring {
+    0%,100% { box-shadow: 0 0 8px rgba(0,212,255,0.3); }
+    50%      { box-shadow: 0 0 20px rgba(0,212,255,0.6); }
+  }
+  .logo-text { font-family:var(--sans); font-weight:700; font-size:20px; letter-spacing:0.08em; color:var(--text-hi); text-transform:uppercase; }
+  .logo-sub  { font-family:var(--mono); font-size:10px; color:var(--accent-dim); letter-spacing:0.15em; }
+  .header-right { display:flex; align-items:center; gap:20px; }
+  #uptime-display { font-family:var(--mono); font-size:12px; color:var(--text-dim); letter-spacing:0.08em; }
+  #uptime-display span { color:var(--accent); }
+  .status-pill {
+    font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
+    padding:4px 10px; border-radius:20px;
+    border:1px solid var(--ok-dim); color:var(--ok);
+    background:rgba(0,230,118,0.07);
+    display:flex; align-items:center; gap:6px;
+  }
+  .status-pill::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--ok); animation:blink 1.4s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .status-pill.offline { border-color:var(--danger-dim); color:var(--danger); background:rgba(255,59,59,0.07); }
+  .status-pill.offline::before { background:var(--danger); animation:none; }
+
+  .container { max-width:1400px; margin:0 auto; padding:24px 28px; display:flex; flex-direction:column; gap:20px; }
+
+  .section-label {
+    font-family:var(--mono); font-size:10px; letter-spacing:0.2em;
+    color:var(--text-dim); text-transform:uppercase; margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  .stat-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .stat-card {
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:var(--radius); padding:18px 20px;
+    position:relative; overflow:hidden; transition:border-color 0.2s;
+  }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+  .stat-card.total::before   { background:var(--accent); }
+  .stat-card.blocked::before { background:var(--danger); }
+  .stat-card.rate::before    { background:var(--warn); }
+  .stat-card.latency::before { background:var(--ok); }
+  .stat-card:hover { border-color:var(--border-hi); }
+  .stat-label { font-family:var(--mono); font-size:10px; letter-spacing:0.15em; color:var(--text-dim); text-transform:uppercase; margin-bottom:8px; }
+  .stat-value { font-family:var(--mono); font-size:36px; font-weight:400; line-height:1; color:var(--text-hi); transition:color 0.3s; }
+  .stat-card.blocked .stat-value { color:var(--danger); }
+  .stat-card.rate    .stat-value { color:var(--warn); }
+  .stat-card.latency .stat-value { color:var(--ok); }
+  .stat-sub { font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:6px; }
+
+  /* error banner */
+  .err-banner {
+    font-family:var(--mono); font-size:11px; color:var(--danger);
+    background:rgba(255,59,59,0.08); border:1px solid rgba(255,59,59,0.25);
+    border-radius:var(--radius); padding:8px 12px; margin-bottom:8px;
+    display:none;
+  }
+
+  .mid-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; }
+  .panel-title {
+    font-family:var(--sans); font-weight:600; font-size:13px;
+    letter-spacing:0.12em; text-transform:uppercase; color:var(--text-hi);
+    margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .panel-title .badge {
+    font-family:var(--mono); font-size:10px; padding:2px 8px; border-radius:20px;
+    background:rgba(0,212,255,0.1); border:1px solid var(--accent-dim);
+    color:var(--accent); letter-spacing:0.08em;
+  }
+
+  .bar-list { display:flex; flex-direction:column; gap:9px; }
+  .bar-item { display:flex; flex-direction:column; gap:4px; }
+  .bar-header { display:flex; justify-content:space-between; align-items:baseline; }
+  .bar-key { font-family:var(--mono); font-size:11px; color:var(--text); letter-spacing:0.05em; }
+  .bar-val { font-family:var(--mono); font-size:11px; color:var(--text-hi); }
+  .bar-track { height:4px; background:var(--bg3); border-radius:2px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:2px; transition:width 0.6s cubic-bezier(0.4,0,0.2,1); background:var(--accent); }
+  .bar-fill.mitre { background:var(--warn); }
+
+  .rules-grid { display:grid; grid-template-columns:auto 1fr auto auto auto; gap:0; font-family:var(--mono); font-size:11px; }
+  .rules-grid .rh { color:var(--text-dim); font-size:10px; letter-spacing:0.12em; text-transform:uppercase; padding:0 8px 8px 0; border-bottom:1px solid var(--border); font-weight:400; }
+  .rules-grid .rh:last-child { padding-right:0; text-align:right; }
+  .rules-grid .rc { padding:7px 8px 7px 0; border-bottom:1px solid rgba(30,45,61,0.5); display:flex; align-items:center; color:var(--text); }
+  .rules-grid .rc:last-child { padding-right:0; justify-content:flex-end; }
+  .rule-id-badge { font-family:var(--mono); font-size:10px; padding:2px 6px; border-radius:3px; background:rgba(0,212,255,0.08); border:1px solid rgba(0,212,255,0.2); color:var(--accent); white-space:nowrap; }
+  .sev-badge { font-family:var(--mono); font-size:10px; padding:2px 6px; border-radius:3px; white-space:nowrap; }
+  .sev-CRITICAL  { background:rgba(255,59,59,0.15);  border:1px solid rgba(255,59,59,0.3);  color:var(--danger); }
+  .sev-EMERGENCY { background:rgba(255,59,59,0.25);  border:1px solid rgba(255,59,59,0.5);  color:#ff6060; }
+  .sev-WARNING   { background:rgba(255,170,0,0.15);  border:1px solid rgba(255,170,0,0.3);  color:var(--warn); }
+  .sev-INFO      { background:rgba(0,212,255,0.08);  border:1px solid rgba(0,212,255,0.15); color:var(--accent-dim); }
+  .enabled-dot { width:7px; height:7px; border-radius:50%; display:inline-block; background:var(--ok); box-shadow:0 0 6px var(--ok); }
+
+  .violations-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
+  thead th { text-align:left; padding:0 12px 10px 0; color:var(--text-dim); font-size:10px; letter-spacing:0.12em; text-transform:uppercase; border-bottom:1px solid var(--border); white-space:nowrap; font-weight:400; }
+  tbody tr { border-bottom:1px solid rgba(30,45,61,0.4); transition:background 0.15s; }
+  tbody tr:hover { background:rgba(0,212,255,0.03); }
+  tbody td { padding:8px 12px 8px 0; color:var(--text); white-space:nowrap; vertical-align:middle; }
+  .blocked-row { background:rgba(255,59,59,0.04); }
+  .blocked-row:hover { background:rgba(255,59,59,0.07) !important; }
+  .allowed-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:3px; font-size:10px; }
+  .chip-blocked { background:rgba(255,59,59,0.15); border:1px solid rgba(255,59,59,0.3); color:var(--danger); }
+  .chip-allowed { background:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.2); color:var(--ok); }
+  .mitre-chip { font-family:var(--mono); font-size:10px; padding:2px 6px; border-radius:3px; background:rgba(255,170,0,0.1); border:1px solid rgba(255,170,0,0.25); color:var(--warn); }
+
+  .timeline-wrap { display:flex; align-items:flex-end; gap:4px; height:80px; padding-top:8px; }
+  .tl-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; height:100%; justify-content:flex-end; }
+  .tl-bar-wrap { width:100%; display:flex; flex-direction:column; justify-content:flex-end; flex:1; gap:1px; }
+  .tl-bar { width:100%; border-radius:2px 2px 0 0; transition:height 0.4s ease; min-height:2px; }
+  .tl-bar.total-bar   { background:rgba(0,212,255,0.25); }
+  .tl-bar.blocked-bar { background:var(--danger); opacity:0.8; }
+  .tl-label { font-size:8px; color:var(--text-dim); letter-spacing:0.04em; white-space:nowrap; overflow:hidden; text-overflow:clip; max-width:100%; text-align:center; }
+
+  footer { text-align:center; padding:20px; font-family:var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:0.1em; border-top:1px solid var(--border); margin-top:8px; }
+  .refresh-bar { position:fixed; bottom:0; left:0; height:2px; background:var(--accent); opacity:0.6; transition:width linear; z-index:200; }
+
+  @media (max-width:900px) {
+    .stat-row { grid-template-columns:repeat(2,1fr); }
+    .mid-row  { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="refresh-bar" id="refresh-bar"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 5v6l7 4 7-4V5L8 1zm0 1.5l5.5 3.1v5.8L8 14.5 2.5 11.4V5.6L8 2.5z"/><circle cx="8" cy="8" r="2"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">PhysicsGuard</div>
+      <div class="logo-sub">ICS SECURITY GATEWAY · LAYER 7 MONITOR</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="uptime-display">UPTIME <span id="uptime-val">--</span></div>
+    <div class="status-pill" id="status-pill">ONLINE</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- error banner — shown only when an API call fails -->
+  <div class="err-banner" id="err-banner"></div>
+
+  <!-- STAT CARDS -->
+  <div>
+    <div class="section-label">Live Metrics</div>
+    <div class="stat-row">
+      <div class="stat-card total">
+        <div class="stat-label">Total Commands</div>
+        <div class="stat-value" id="stat-total">--</div>
+        <div class="stat-sub">all validated</div>
+      </div>
+      <div class="stat-card blocked">
+        <div class="stat-label">Blocked</div>
+        <div class="stat-value" id="stat-blocked">--</div>
+        <div class="stat-sub">attacks denied</div>
+      </div>
+      <div class="stat-card rate">
+        <div class="stat-label">Block Rate</div>
+        <div class="stat-value" id="stat-rate">--</div>
+        <div class="stat-sub">of all traffic</div>
+      </div>
+      <div class="stat-card latency">
+        <div class="stat-label">Avg Latency</div>
+        <div class="stat-value" id="stat-latency">--</div>
+        <div class="stat-sub">microseconds</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MID ROW -->
+  <div class="mid-row">
+    <div class="panel">
+      <div class="panel-title">
+        Active Rules
+        <span class="badge" id="rules-badge">--</span>
+      </div>
+      <div class="rules-grid" id="rules-grid">
+        <div class="rh">ID</div>
+        <div class="rh">Type / MITRE</div>
+        <div class="rh">Priority</div>
+        <div class="rh">Severity</div>
+        <div class="rh" style="text-align:right">Status</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Attack Breakdown</div>
+      <div style="margin-bottom:18px">
+        <div class="section-label" style="font-size:9px;margin-bottom:8px">By Rule</div>
+        <div class="bar-list" id="by-rule-bars"></div>
+      </div>
+      <div>
+        <div class="section-label" style="font-size:9px;margin-bottom:8px">By MITRE ATT&amp;CK Tag</div>
+        <div class="bar-list" id="by-mitre-bars"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="panel">
+    <div class="panel-title">
+      24-Hour Command Timeline
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+        <span style="color:var(--accent)">■</span> total &nbsp;
+        <span style="color:var(--danger)">■</span> blocked
+      </span>
+    </div>
+    <div class="timeline-wrap" id="timeline-wrap">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">Loading…</div>
+    </div>
+  </div>
+
+  <!-- VIOLATIONS TABLE -->
+  <div class="panel">
+    <div class="panel-title">
+      Recent Violations
+      <span class="badge" id="violations-badge">--</span>
+    </div>
+    <div class="violations-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Timestamp</th><th>Addr</th><th>Value</th>
+            <th>Status</th><th>Rule</th><th>Severity</th><th>MITRE</th>
+            <th>Source IP</th><th>Latency (µs)</th><th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="violations-tbody">
+          <tr><td colspan="11" style="color:var(--text-dim);padding:16px 0">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  PHYSICSGUARD v1.0.0 &nbsp;·&nbsp; MTech Cybersecurity Final Year Project &nbsp;·&nbsp;
+  Auto-refreshes every 10 s &nbsp;·&nbsp;
+  <a href="/docs" style="color:var(--accent-dim);text-decoration:none">API Docs ↗</a>
+</footer>
+
+<script>
+const REFRESH_MS = 10_000;
+
+// ── helpers ───────────────────────────────────────────────────────────────
+
+function showErr(msg) {
+  const b = document.getElementById('err-banner');
+  b.textContent = '⚠ ' + msg;
+  b.style.display = 'block';
+  // auto-hide after 15 s
+  setTimeout(() => { b.style.display = 'none'; }, 15000);
+}
+
+async function apiFetch(path) {
+  const r = await fetch(path);
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`${path} → HTTP ${r.status}: ${body}`);
+  }
+  return r.json();
+}
+
+function fmtUptime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function fmtTs(ts) {
+  // Handle Unix float timestamps (e.g. 1773692679.07) and ISO strings
+  if (!ts) return "--";
+  const n = parseFloat(ts);
+  if (!isNaN(n) && n > 1_000_000_000) {
+    const d = new Date(n * 1000);
+    return d.toISOString().replace("T"," ").substring(0,19);
+  }
+  return String(ts).replace("T"," ").substring(0,19);
+}
+
+function sevClass(s) { return 'sev-' + (s || 'INFO'); }
+
+// ── individual loaders ────────────────────────────────────────────────────
+
+async function loadHealth() {
+  try {
+    const d = await apiFetch('/api/health');
+    document.getElementById('uptime-val').textContent = fmtUptime(d.uptime_s);
+    const pill = document.getElementById('status-pill');
+    pill.textContent = 'ONLINE';
+    pill.className = 'status-pill';
+  } catch(e) {
+    console.error('health:', e);
+    const pill = document.getElementById('status-pill');
+    pill.className = 'status-pill offline';
+    pill.textContent = 'OFFLINE';
+  }
+}
+
+async function loadStats() {
+  try {
+    const stats = await apiFetch('/api/stats');
+    document.getElementById('stat-total').textContent   = stats.total.toLocaleString();
+    document.getElementById('stat-blocked').textContent = stats.blocked.toLocaleString();
+    document.getElementById('stat-rate').textContent    = (stats.block_rate * 100).toFixed(1) + '%';
+    renderBars('by-rule-bars',  stats.by_rule,  false);
+    renderBars('by-mitre-bars', stats.by_mitre, true);
+  } catch(e) {
+    console.error('stats:', e);
+    showErr('Stats unavailable — ' + e.message);
+  }
+}
+
+async function loadMetrics() {
+  try {
+    const m = await apiFetch('/api/metrics');
+    document.getElementById('stat-latency').textContent = m.avg_latency_us.toFixed(1);
+  } catch(e) {
+    console.error('metrics:', e);
+    showErr('Metrics unavailable — ' + e.message);
+  }
+}
+
+function renderBars(id, data, isMitre) {
+  const el = document.getElementById(id);
+  const entries = Object.entries(data || {}).sort((a,b) => b[1]-a[1]);
+  const max = entries.length ? entries[0][1] : 1;
+  el.innerHTML = entries.length
+    ? entries.map(([k,v]) => `
+        <div class="bar-item">
+          <div class="bar-header">
+            <span class="bar-key">${k}</span>
+            <span class="bar-val">${v}</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill${isMitre?' mitre':''}" style="width:${Math.round(v/max*100)}%"></div>
+          </div>
+        </div>`).join('')
+    : '<div style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">No data yet</div>';
+}
+
+async function loadRules() {
+  try {
+    const rules = await apiFetch('/api/rules');
+    document.getElementById('rules-badge').textContent = rules.length + ' active';
+    const grid = document.getElementById('rules-grid');
+    // preserve header cells
+    const headers = [...grid.querySelectorAll('.rh')];
+    grid.innerHTML = '';
+    headers.forEach(h => grid.appendChild(h));
+    rules.sort((a,b) => a.priority - b.priority).forEach(r => {
+      grid.innerHTML += `
+        <div class="rc"><span class="rule-id-badge">${r.rule_id}</span></div>
+        <div class="rc" style="color:var(--text-dim)">${r.mitre_tag||'—'}</div>
+        <div class="rc" style="color:var(--text-dim)">${r.priority}</div>
+        <div class="rc"><span class="sev-badge ${sevClass(r.severity)}">${r.severity}</span></div>
+        <div class="rc"><span class="enabled-dot" style="${r.enabled?'':'background:var(--text-dim);box-shadow:none'}"></span></div>`;
+    });
+  } catch(e) {
+    console.error('rules:', e);
+    showErr('Rules unavailable — ' + e.message);
+  }
+}
+
+async function loadViolations() {
+  try {
+    const rows = await apiFetch('/api/violations?limit=20');
+    document.getElementById('violations-badge').textContent = rows.length + ' shown';
+    const tbody = document.getElementById('violations-tbody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="11" style="color:var(--text-dim);font-family:var(--mono);font-size:11px;padding:16px 0">No commands logged yet — start the Modbus server and send some traffic.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr class="${r.allowed?'':'blocked-row'}">
+        <td style="color:var(--text-dim)">${r.id}</td>
+        <td>${fmtTs(r.timestamp)}</td>
+        <td>${r.address}</td>
+        <td>${r.value}</td>
+        <td><span class="allowed-chip ${r.allowed?'chip-allowed':'chip-blocked'}">${r.allowed?'ALLOW':'BLOCK'}</span></td>
+        <td><span class="rule-id-badge">${r.rule_id||'—'}</span></td>
+        <td><span class="sev-badge ${sevClass(r.severity)}">${r.severity||'—'}</span></td>
+        <td>${r.mitre_tag?`<span class="mitre-chip">${r.mitre_tag}</span>`:'—'}</td>
+        <td style="color:var(--text-dim)">${r.source_ip||'—'}</td>
+        <td style="color:var(--ok)">${(+r.latency_us).toFixed(1)}</td>
+        <td style="color:var(--text-dim);max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.reason||'—'}</td>
+      </tr>`).join('');
+  } catch(e) {
+    console.error('violations:', e);
+    showErr('Violations unavailable — ' + e.message);
+  }
+}
+
+async function loadTimeline() {
+  try {
+    const buckets = await apiFetch('/api/timeline?hours=24');
+    const wrap = document.getElementById('timeline-wrap');
+    if (!buckets.length) {
+      wrap.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">No timeline data yet.</div>';
+      return;
+    }
+    const maxTotal = Math.max(...buckets.map(b => b.total), 1);
+    const HEIGHT = 68;
+    wrap.innerHTML = buckets.map(b => {
+      const th = Math.round((b.total   / maxTotal) * HEIGHT);
+      const bh = Math.round((b.blocked / maxTotal) * HEIGHT);
+      const label = (b.hour||'').substring(11,16);
+      return `
+        <div class="tl-col">
+          <div class="tl-bar-wrap">
+            <div class="tl-bar total-bar"   style="height:${th}px"></div>
+            <div class="tl-bar blocked-bar" style="height:${bh}px"></div>
+          </div>
+          <div class="tl-label">${label}</div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    console.error('timeline:', e);
+    showErr('Timeline unavailable — ' + e.message);
+  }
+}
+
+// ── refresh cycle ─────────────────────────────────────────────────────────
+
+async function refreshAll() {
+  await Promise.allSettled([
+    loadHealth(),
+    loadStats(),
+    loadMetrics(),
+    loadRules(),
+    loadViolations(),
+    loadTimeline(),
+  ]);
+}
+
+function startProgressBar() {
+  const bar = document.getElementById('refresh-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  requestAnimationFrame(() => {
+    bar.style.transition = `width ${REFRESH_MS}ms linear`;
+    bar.style.width = '100%';
+  });
+}
+
+refreshAll();
+startProgressBar();
+setInterval(() => { refreshAll(); startProgressBar(); }, REFRESH_MS);
+</script>
+</body>
+</html>
