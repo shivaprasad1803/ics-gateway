@@ -1,0 +1,8 @@
+[project]
+name = "ics-security-gateway"
+version = "0.1.0"
+description = "PhysicsGuard ICS Security Gateway"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]

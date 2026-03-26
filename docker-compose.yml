@@ -1,0 +1,98 @@
+# docker-compose.yml — PhysicsGuard ICS Security Gateway
+# =========================================================
+# Use docker-compose (hyphen) — works on your system right now:
+#
+#   docker-compose up --build
+#   docker-compose up --build -d        (background)
+#   docker-compose --profile full up --build   (+ OPC UA)
+#   docker-compose logs -f modbus       (watch modbus logs)
+#   docker-compose logs -f api          (watch api logs)
+#   docker-compose ps                   (check status)
+#   docker-compose down                 (stop, keep DB)
+#   docker-compose down -v              (stop + wipe DB)
+#
+# Dashboard : http://localhost:8000
+# API docs  : http://localhost:8000/docs
+# Modbus TCP: localhost:5020
+
+version: "3.8"
+
+services:
+
+  # ── modbus ─────────────────────────────────────────────────────────────────
+  # Layers 1 + 4 + 5 + 6
+  modbus:
+    build: .
+    container_name: physicsguard-modbus
+    command: python -m src.modbus_server
+    environment:
+      # PYTHONPATH is already baked into the image via Dockerfile ENV.
+      # Repeated here explicitly so it is visible in docker-compose ps/inspect.
+      PYTHONPATH: /app:/app/src
+      MODBUS_BIND_HOST: "0.0.0.0"
+      MODBUS_BIND_PORT: "5020"
+      # Telegram alerting — leave blank for log-only mode
+      PHYSICSGUARD_BOT_TOKEN: ""
+      PHYSICSGUARD_CHAT_ID: ""
+    ports:
+      - "5020:5020"
+    volumes:
+      - logs:/app/logs
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      # nc (netcat-openbsd) installed in Dockerfile — reliable TCP probe
+      test: ["CMD-SHELL", "nc -z localhost 5020 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ── api ────────────────────────────────────────────────────────────────────
+  # Layer 7 — FastAPI dashboard + REST API
+  api:
+    build: .
+    container_name: physicsguard-api
+    # No command: override — uses CMD from Dockerfile (uvicorn web_ui.main:app)
+    environment:
+      PYTHONPATH: /app:/app/src
+    ports:
+      - "8000:8000"
+    volumes:
+      - logs:/app/logs
+      - ./config:/app/config:ro
+    depends_on:
+      modbus:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 10s
+
+  # ── opcua ──────────────────────────────────────────────────────────────────
+  # Layer 2 — OPC UA (optional)
+  # Start with: docker-compose --profile full up --build
+  opcua:
+    build: .
+    container_name: physicsguard-opcua
+    command: python -m src.opcua_server
+    profiles:
+      - full
+    environment:
+      PYTHONPATH: /app:/app/src
+    ports:
+      - "4840:4840"
+    volumes:
+      - logs:/app/logs
+      - ./config:/app/config:ro
+    depends_on:
+      modbus:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  logs:
+    driver: local
