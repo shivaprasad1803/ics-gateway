@@ -103,8 +103,10 @@ class TemperatureController:
 
     def _get_snapshot(self) -> dict[str, Any]:
         return {
-            "temperature": self._temperature,
-            "temp_int": round(self._temperature),
-            "heater_power": self._heater_power,
-            "heater_int": round(self._heater_power)
+            "temperature":    self._temperature,
+            "heater_power":   self._heater_power,
+            "is_emergency":   self._is_emergency_shutdown,
+            "last_cmd_time":  self._last_cmd_time,
+            "temp_int":       round(self._temperature),
+            "heater_int":     round(self._heater_power),
         }
