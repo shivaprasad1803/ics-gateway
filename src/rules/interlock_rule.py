@@ -106,12 +106,12 @@ class InterlockRule(BaseRule):
         # Validate the expression at construction time so misconfiguration
         # is caught immediately, not on the first live command.
         try:
-            # Use a dummy context with the condition's variable names to check syntax.
-            # We can't know the variable names without parsing, so just check syntax.
-            safe_eval_condition.__doc__  # no-op, just validate module loaded
-        except Exception:
-            pass  # Module-level validation done; runtime parse below handles it
-
+            import ast as _ast
+            _ast.parse(condition, mode="eval")
+        except SyntaxError as exc:
+            raise ValueError(
+                f"InterlockRule: invalid condition syntax {condition!r}: {exc}"
+            ) from exc
         self.address         = address
         self.condition       = stripped
         self.label           = label
