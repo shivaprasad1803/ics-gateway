@@ -282,7 +282,7 @@ def _attack_A06_dos_flood(client: ModbusTcpClient, stats: SimStats) -> None:
         "[expect excess DROPPED by rate limiter]"
     )
     for i in range(15):
-        val = 50 + (i % 5)  # slight variation so R008 replay doesn't fire first
+        val = 20 + (i * 3 % 40)  # slight variation so R008 replay doesn't fire first
         _write(client, 1, val, label=f"A06 flood #{i+1:02d} val={val}")
         stats.record("A06_DoSFlood")
         # No sleep — intentionally rapid-fire to trigger rate limiter
