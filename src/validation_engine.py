@@ -507,8 +507,7 @@ class ValidationEngine:
 
 
 # ── YAML factory ─────────────────────────────────────────────────────────────
-
-def load_rules_from_yaml(path: str) -> ValidationEngine:
+def load_rules_from_yaml(path: str, engine: ValidationEngine | None = None) -> ValidationEngine:
     """
     Build a ValidationEngine from a YAML configuration file.
 
@@ -517,11 +516,11 @@ def load_rules_from_yaml(path: str) -> ValidationEngine:
     during the demo without touching source code.
 
     Supported rule types (maps 'type' field to rule class):
-        auth      → AuthRule
-        range     → RangeRule
-        time      → TimeRule
-        rate      → RateRule
-        interlock → InterlockRule
+        auth      -> AuthRule
+        range     -> RangeRule
+        time      -> TimeRule
+        rate      -> RateRule
+        interlock -> InterlockRule
 
     Example YAML (see config/rules.yaml for full example)::
 
@@ -564,7 +563,8 @@ def load_rules_from_yaml(path: str) -> ValidationEngine:
             f"'rules:' list"
         )
 
-    engine = ValidationEngine()
+    if engine is None:
+        engine = ValidationEngine()
 
     for entry in config["rules"]:
         rule_type:  str  = str(entry.get("type", "")).strip().lower()
@@ -630,6 +630,8 @@ def load_rules_from_yaml(path: str) -> ValidationEngine:
             rule.rule_id = rule_id
         rule.enabled = enabled
 
+        if rule.rule_id in engine._rules:
+            engine.unregister_rule(rule.rule_id)
         engine.register_rule(rule)
         log.info(
             "load_rules_from_yaml: loaded %s (type=%s, priority=%d, enabled=%s)",
