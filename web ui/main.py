@@ -34,11 +34,13 @@ async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
 
     if not _already_injected:
         from src.forensic_logger import get_logger
-        from src.validation_engine import load_rules_from_yaml
+        from src.validation_engine import load_rules_from_yaml, build_water_tank_engine
 
         application.state.start_time = time.monotonic()
         application.state.flogger = get_logger("logs/physicsguard.db")
-        application.state.engine = load_rules_from_yaml("config/rules.yaml")
+        
+        base_engine = build_water_tank_engine()
+        application.state.engine = load_rules_from_yaml("config/rules.yaml", engine=base_engine)
         log.info("PhysicsGuard Layer 7 started — ForensicLogger and ValidationEngine ready")
     else:
         if not hasattr(application.state, "start_time"):
