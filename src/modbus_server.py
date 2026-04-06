@@ -50,6 +50,7 @@ import os
 import sys
 import threading
 import time
+import yaml
 from collections import deque
 
 from dotenv import load_dotenv
@@ -424,7 +425,9 @@ def _build_engine(yaml_path: str) -> ValidationEngine:
     """
     if os.path.exists(yaml_path):
         log.info("Loading rules from %s", yaml_path)
-        engine = load_rules_from_yaml(yaml_path)
+        from src.validation_engine import build_water_tank_engine
+        base_engine = build_water_tank_engine()
+        engine =load_rules_from_yaml(yaml_path, engine=base_engine)
         log.info("YAML engine loaded — %d rules", len(engine.get_rules()))
     else:
         log.warning("rules.yaml not found at %s — using hardcoded defaults", yaml_path)
