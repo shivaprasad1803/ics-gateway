@@ -1,0 +1,108 @@
+# config/rules.yaml  —  PhysicsGuard Validation Rule Configuration
+# ==================================================================
+# Layer 4  |  PhysicsGuard ICS Security Gateway
+#
+# This file is the single operator-facing configuration surface for
+# the five core validation rules (R001–R005).
+#
+# Changes here take effect on the next server restart — no code edits.
+#
+# Rule types:
+#   auth      → AuthRule      (R004)  IP whitelist
+#   range     → RangeRule     (R001)  value bounds
+#   time      → TimeRule      (R005)  operating hours
+#   rate      → RateRule      (R002)  rate-of-change
+#   interlock → InterlockRule (R003)  physics interlock
+#
+# Priority order (lowest runs first):
+#   R004 priority=5   — IP whitelist  (identity gate)
+#   R001 priority=10  — value range   (fast, no context)
+#   R005 priority=15  — time window   (wall-clock check)
+#   R002 priority=20  — rate-of-change
+#   R003 priority=30  — pump interlock (full context)
+#
+# Novel contribution rules R006 (TemporalRule), R007 (TopologyRule),
+# and R008 (ReplayRule) are wired in code after YAML loading — they
+# require stateful or graph objects that cannot be expressed here.
+#
+# Operator notes:
+#   - Set enabled: false to disable a rule without removing it
+#   - R004 allowed_ips: [] means ALL sources permitted (opt-in model)
+#   - R005 block_outside_hours: false = detection/audit mode (WARNING, no block)
+#           block_outside_hours: true  = enforcement mode (CRITICAL, blocks)
+#   - R003 condition uses safe AST evaluator — comparisons/logic only
+
+rules:
+
+  # ── R004: Source IP Whitelist ──────────────────────────────────────────────
+  # Blocks commands from IPs not in the whitelist.
+  # Empty list = allow all sources (opt-in — safe default for new deployments).
+  # For the dissertation demo, leave empty so localhost test traffic is allowed.
+  # Production example: allowed_ips: ["127.0.0.1", "192.168.1.10"]
+  - rule_id:     R004
+    type:        auth
+    priority:    5
+    label:       "IP whitelist"
+    allowed_ips: []
+    enabled:     true
+
+  # ── R001: Valve Position Range ────────────────────────────────────────────
+  # Blocks valve writes outside [0, 100]%.
+  # Physical justification: valve cannot open beyond 100% or close below 0%.
+  # Any value outside this range is a protocol error or T0855 attack.
+  - rule_id:   R001
+    type:      range
+    priority:  10
+    address:   1
+    min_value: 0.0
+    max_value: 100.0
+    label:     "valve %"
+    enabled:   true
+
+  # ── R005: Time-Based Access Control ───────────────────────────────────────
+  # Warns or blocks commands outside permitted operating hours.
+  #
+  # FIX: Was 0–23 (all hours permitted = rule effectively disabled).
+  # Now set to 06:00–22:00 — realistic plant operating shift window.
+  # block_outside_hours: true = ENFORCEMENT mode (CRITICAL, command blocked).
+  # This activates A05 detection for the dissertation demo:
+  #   - Commands at 02:00 → blocked with MITRE T0855
+  #   - Commands at 14:00 → allowed
+  #
+  # To switch back to detection-only mode (audit/log but don't block):
+  #   block_outside_hours: false
+  - rule_id:               R005
+    type:                  time
+    priority:              15
+    allowed_hours_start:   6
+    allowed_hours_end:     22
+    label:                 "operating hours"
+    block_outside_hours:   true
+    enabled:               true
+
+  # ── R002: Valve Rate-of-Change ────────────────────────────────────────────
+  # Blocks valve writes where |Δvalue| / dt > 5.0 %/s.
+  # Physical justification: IEC 61511 safe valve actuation rate.
+  # Rapid changes cause water hammer and pipe stress.
+  # 5 %/s → 20 s to traverse full range — physically safe.
+  - rule_id:      R002
+    type:         rate
+    priority:     20
+    address:      1
+    max_rate:     5.0
+    context_key:  valve_position
+    label:        "%/s"
+    enabled:      true
+
+  # ── R003: Pump Dry-Run Interlock ──────────────────────────────────────────
+  # Blocks pump-start commands when tank level < 10%.
+  # Physical justification: dry-run causes bearing failure within seconds.
+  # DRY_RUN_LEVEL=10% matches WaterTankController.DRY_RUN_LEVEL.
+  - rule_id:        R003
+    type:           interlock
+    priority:       30
+    address:        2
+    condition:      "tank_level >= 10"
+    label:          "pump dry-run interlock"
+    only_on_nonzero: true
+    enabled:        true
