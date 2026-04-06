@@ -166,7 +166,7 @@ class TimeRule(BaseRule):
 
         # Resolve wall-clock time — NOT monotonic (B02: monotonic for rate
         # only; time-of-day always uses civil time)
-        wall_time: float = now if now is not None else time.time()
+        wall_time: float = now if (now is not None and now > 1_000_000_000) else time.time()
         current_hour: int = datetime.datetime.fromtimestamp(wall_time).hour
 
         if self._is_within_hours(current_hour):
