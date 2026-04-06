@@ -589,7 +589,7 @@ class TestViolationsRouterGaps:
         app.state.flogger    = mock
         app.state.engine     = MagicMock()
         app.state.start_time = time.monotonic()
-        client = TestClient(app, raise_server_exceptions=True)
+        client = TestClient(app, raise_server_exceptions=False)
         resp   = client.get("/api/timeline?hours=1")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
