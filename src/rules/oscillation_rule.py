@@ -95,6 +95,8 @@ from __future__ import annotations
 
 import logging
 import threading
+
+import time
 from collections import deque
 from typing import Any
 
@@ -196,7 +198,7 @@ class OscillationRule(BaseRule):
 
         import time as _time
         if now is None:
-            now = _time.monotonic()
+            now = time.monotonic()
 
         value = float(value)
 
