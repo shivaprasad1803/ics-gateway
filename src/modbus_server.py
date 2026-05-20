@@ -323,12 +323,13 @@ class ProtectedHoldingRegister(ModbusSequentialDataBlock):
             else:
                 log.warning("PHYSICS BLOCK | reg=2 val=%.2f | %s", value, phys.get("reason", ""))
 
-        elif address == 11:                 # PLC_02: heater power
+# --- PLC_02: Temperature Control (MODIFIED) ---
+        elif address in (11, 12):           # heater power (handling both offsets)
             phys = self._temp.set_heater_power(value)
             if phys["allowed"]:
-                super().setValues(11, [round(value)])
+                super().setValues(address, [round(value)])
             else:
-                log.warning("PHYSICS BLOCK | reg=11 val=%.2f | %s", value, phys.get("reason", ""))
+                log.warning("BLOCKED HEATER | addr=%d val=%.2f | %s", address, value, phys.get("reason", ""))
 
         elif address == 21:                 # PLC_03: relief valve
             phys = self._press.set_relief_valve(bool(values[0]))
