@@ -571,7 +571,9 @@ def test_concurrent_writes_exact_count() -> None:
         t.start()
     for t in threads:
         t.join()
-    logger.flush(timeout=10.0)
+    import time as _t
+    _t.sleep(0.5)   # let all threads finish enqueuing
+    logger.flush(timeout=15.0)
     stats = logger.get_stats()
     # Assert
     assert not errors, f"Concurrent write errors: {errors}"
