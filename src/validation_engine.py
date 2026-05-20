@@ -727,7 +727,7 @@ def build_water_tank_engine() -> "ValidationEngine":
 
     # R008: command replay detection (5 s window, all registers)
     engine.register_rule(ReplayRule(
-        address=None,
+        address=2,
         replay_window_s=5.0,
     ))
 
